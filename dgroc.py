@@ -5,6 +5,7 @@
 
  Authors:
    Pierre-Yves Chibon <pingou@pingoured.fr>
+   Daniel Vrátil <dvratil@redhat.com>
 
 License: GPLv3 or any later version.
 """
