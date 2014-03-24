@@ -180,11 +180,22 @@ def generate_new_srpm(config, project):
         LOG.info('Cloning %s', git_url)
         pygit2.clone_repository(git_url, git_folder)
 
-    # git pull
+
+    if config.has_option(project, 'git_branch'):
+        branch = config.get(project, 'git_branch')
+    else:
+        branch = 'master'
+
+    # git checkout origin/branch
+    repo = pygit2.Repository(git_folder)
+    ref = repo.lookup_branch('origin/' + branch, pygit2.GIT_BRANCH_REMOTE)
+    repo.checkout(ref.name)
+
+    # git pull remote branch
     cwd = os.getcwd()
     os.chdir(git_folder)
     pull = subprocess.Popen(
-        ["git", "pull"],
+        ["git", "pull", config.get(project, 'git_url'), branch],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE)
     out = pull.communicate()
@@ -194,7 +205,6 @@ def generate_new_srpm(config, project):
         return
 
     # Retrieve last commit
-    repo = pygit2.Repository(git_folder)
     commit = repo[repo.head.target]
     commit_hash = commit.oid.hex[:8]
     LOG.info('Last commit: %s -> %s', commit.oid.hex, commit_hash)

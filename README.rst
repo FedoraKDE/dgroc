@@ -33,6 +33,7 @@ Get it running
     [subsurface]
     git_url = git://subsurface.hohndel.org/subsurface.git
     git_folder = /tmp/subsurface/
+    git_branch = v4.0-branch
     spec_file = ~/GIT/subsurface/subsurface.spec
 
     [guake]
@@ -82,6 +83,8 @@ repo is not already cloned on the disk (see ``git_folder``).
 
 ``git_folder`` The location of the local clone of the git repository to
 build.
+
+``git_branch`` A branch to checkout out.
 
 ``spec_file`` The location of the spec file for the project to build.
 
