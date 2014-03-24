@@ -26,6 +26,7 @@ Get it running
     username = me
     email = my_email@example.com
     copr_url = https://copr.fedoraproject.org/
+    copr_name = subsurface
     upload_command = cp %s /var/www/html/subsurface/
     upload_url = http://my_server/subsurface/%s
     #no_ssl_check = True  # No longer required now that copr has a valid cert
@@ -54,7 +55,9 @@ it. When not specified, ``username`` will be used.
 ``email`` The email to use in the changelog of the spec file when updating
 it.
 
-``copr_url`` The url of `copr`_ to use.
+``copr_url`` The url of `copr`_ server to use.
+
+``copr_name`` Name of the `copr`_ to use.
 
 ``upload_command`` The command to run to make the source rpm (src.rpm, srpm)
 available to copr. This can be a copy command (cp) or a copy over ssh (scp).

@@ -348,43 +348,42 @@ def copr_build(config, srpms):
 
     build_ids = []
     ## Build project/srpm in copr
-    for project in srpms:
-        srpms = [
-            config.get('main', 'upload_url') % (
-                srpms[project].rsplit('/', 1)[1])
-        ]
+    srpms = [
+        config.get('main', 'upload_url') % (
+            srpms[project].rsplit('/', 1)[1])
+    ]
 
-        URL = '%s/api/coprs/%s/%s/new_build/' % (
-            copr_url,
-            username,
-            project)
+    URL = '%s/api/coprs/%s/%s/new_build/' % (
+        copr_url,
+        username,
+        config.get('main', 'copr_name'))
 
-        data = {
-            'pkgs': ' '.join(srpms),
-        }
+    data = {
+        'pkgs': ' '.join(srpms),
+    }
 
-        req = requests.post(
-            URL, auth=(login, token), data=data, verify=not insecure)
+    req = requests.post(
+        URL, auth=(login, token), data=data, verify=not insecure)
 
-        if '<title>Sign in Coprs</title>' in req.text:
-            LOG.info("Invalid API token")
-            return
+    if '<title>Sign in Coprs</title>' in req.text:
+        LOG.info("Invalid API token")
+        return
 
-        if req.status_code == 404:
-            LOG.info("Project %s/%s not found.", user['username'], project)
+    if req.status_code == 404:
+        LOG.info("Project %s/%s not found.", user['username'], project)
 
-        try:
-            output = req.json()
-        except ValueError:
-            LOG.info("Unknown response from server.")
-            LOG.debug(req.url)
-            LOG.debug(req.text)
-            return
-        if req.status_code != 200:
-            LOG.info("Something went wrong:\n  %s", output['error'])
-            return
-        LOG.info(output)
-        build_ids.append(output['id'])
+    try:
+        output = req.json()
+    except ValueError:
+        LOG.info("Unknown response from server.")
+        LOG.debug(req.url)
+        LOG.debug(req.text)
+        return
+    if req.status_code != 200:
+        LOG.info("Something went wrong:\n  %s", output['error'])
+        return
+    LOG.info(output)
+    build_ids.append(output['id'])
     return build_ids
 
 
