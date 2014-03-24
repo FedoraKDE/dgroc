@@ -93,6 +93,10 @@ def get_arguments():
         '--no-monitoring', dest='monitoring', action='store_false',
         default=True,
         help='Generate the new source rpm but do not build on copr')
+    parser.add_argument(
+        '--force', dest='force', action='store_true',
+        default=False,
+        help='Write SRPM even when there were no changes.')
 
     return parser.parse_args()
 
@@ -149,7 +153,7 @@ def get_rpm_sourcedir():
     return dirname
 
 
-def generate_new_srpm(config, project):
+def generate_new_srpm(config, project, force):
     ''' For a given project in the configuration file generate a new srpm
     if it is possible.
     '''
@@ -219,7 +223,7 @@ def generate_new_srpm(config, project):
     elif config.get(project, 'git_hash') != commit_hash:
         changed = True
 
-    if not changed:
+    if not changed and not force:
         return
 
     # Build sources
@@ -241,12 +245,16 @@ def generate_new_srpm(config, project):
     if '~' in spec_file:
         spec_file = os.path.expanduser(spec_file)
 
-    update_spec(
-        spec_file,
-        commit_hash,
-        archive_name,
-        config.get('main', 'username'),
-        config.get('main', 'email'))
+    try:
+        update_spec(
+            spec_file,
+            commit_hash,
+            archive_name,
+            config.get('main', 'username'),
+            config.get('main', 'email'))
+    except DgrocException, err:
+        if not force:
+            return
 
     # Copy patches
     if config.has_option(project, 'patch_files'):
@@ -474,7 +482,7 @@ def main():
             continue
         LOG.info('Processing project: %s', project)
         try:
-            srpms[project] = generate_new_srpm(config, project)
+            srpms[project] = generate_new_srpm(config, project, args.force)
         except DgrocException, err:
             LOG.info('%s: %s', project, err)
 
