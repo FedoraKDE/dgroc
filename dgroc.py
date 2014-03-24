@@ -250,7 +250,7 @@ def generate_new_srpm(config, project, force):
             spec_file,
             commit_hash,
             archive_name,
-            config.get('main', 'username'),
+            config.get('main', 'realname') if config.has_option('main', 'realname') else config.get('main', 'username'),
             config.get('main', 'email'))
     except DgrocException, err:
         if not force:

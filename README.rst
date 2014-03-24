@@ -46,8 +46,10 @@ Get it running
 
 The Main section
 ----------------
-`username`` The name to use in the changelog of the spec file when updating
-it.
+``username`` User name in `copr`_
+
+``realname`` Real name to use in the changelog of the spec file when updating
+it. When not specified, ``username`` will be used.
 
 ``email`` The email to use in the changelog of the spec file when updating
 it.
