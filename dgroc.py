@@ -330,6 +330,11 @@ def copr_build(config, srpms):
             'No `upload_url` specified in the `main` section of the dgroc '
             'configuration file.')
 
+    if not config.has_option('main', 'copr_name'):
+        raise DgrocException(
+            'No `copr_name` specified in the `main` section of the dgroc '
+            'configuration file.')
+
     if not config.has_option('main', 'copr_url'):
         warnings.warn(
             'No `copr_url` option set in the `main` section of the dgroc '
