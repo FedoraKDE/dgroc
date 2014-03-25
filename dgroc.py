@@ -349,10 +349,7 @@ def copr_build(config, srpms):
 
     build_ids = []
     ## Build project/srpm in copr
-    srpms = [
-        config.get('main', 'upload_url') % (
-            srpms[project].rsplit('/', 1)[1])
-    ]
+    srpms = map(lambda str: config.get('main', 'upload_url') % str.rsplit('/', 1)[1], srpms.values())
 
     URL = '%s/api/coprs/%s/%s/new_build/' % (
         copr_url,
