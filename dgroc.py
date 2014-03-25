@@ -98,6 +98,10 @@ def get_arguments():
         '--force', dest='force', action='store_true',
         default=False,
         help='Write SRPM even when there were no changes.')
+    parser.add_argument(
+        '--no-upload', dest='noupload', action='store_true',
+        default=False,
+        help='Skip uploading SRPMs.')
 
     return parser.parse_args()
 
@@ -490,10 +494,11 @@ def main():
     if args.srpmonly:
         return
 
-    try:
-        upload_srpms(config, srpms.values())
-    except DgrocException, err:
-        LOG.info(err)
+    if not args.noupload:
+        try:
+            upload_srpms(config, srpms.values())
+        except DgrocException, err:
+            LOG.info(err)
 
     try:
         build_ids = copr_build(config, srpms)
