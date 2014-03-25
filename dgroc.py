@@ -422,6 +422,8 @@ def check_copr_build(config, build_ids):
 
     build_ip = []
     ## Build project/srpm in copr
+    successful_builds = []
+    failed_builds = []
     for build_id in build_ids:
 
         URL = '%s/api/coprs/build_status/%s/' % (
@@ -452,7 +454,16 @@ def check_copr_build(config, build_ids):
 
         if output['status'] in ('pending', 'running'):
             build_ip.append(build_id)
-    return build_ip
+        else if output['status'] == 'succeeded'):
+            LOG.info("Build %s succeeded", build_id)
+            successful_builds.append(build_id)
+        else if output['status'] == 'failed'):
+            LOG.info("Build %s failed", build_id)
+            failed_builds.append(build_id)
+
+    return { 'builds' : build_ip,
+             'successful': successful_builds,
+             'failed': failed_builds }
 
 
 def main():
@@ -512,10 +523,15 @@ def main():
 
     if args.monitoring:
         LOG.info('Monitoring %s builds...', len(build_ids))
+        successful = []
+        failed = []
         while build_ids:
             time.sleep(45)
             LOG.info(datetime.datetime.now())
-            build_ids = check_copr_build(config, build_ids)
+            report = check_copr_build(config, build_ids)
+            build_ids = report['builds']
+            successful += report['successful'])
+            failed += report['failed'])
 
 
 if __name__ == '__main__':
