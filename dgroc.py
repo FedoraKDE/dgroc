@@ -20,10 +20,13 @@ import shutil
 import time
 import warnings
 from datetime import date
+import time
 
 import pygit2
 import requests
 
+import smtplib
+from email.mime.text import MIMEText
 
 DEFAULT_CONFIG = os.path.expanduser('~/.config/dgroc')
 COPR_URL = 'http://copr.fedoraproject.org/'
@@ -259,6 +262,7 @@ def generate_new_srpm(config, project, force):
             config.get('main', 'email'))
     except DgrocException, err:
         if not force:
+            # FIXME: Return valid path to SRPM
             return
 
     # Copy patches
@@ -319,7 +323,7 @@ def upload_srpms(config, srpms):
             LOG.info('Strange result with the command: `%s`', ' '.join(cmd))
 
 
-def copr_build(config, srpms):
+def copr_build(config, srpmname):
     ''' Using the information provided in the configuration file,
     run the build in copr.
     '''
@@ -335,7 +339,7 @@ def copr_build(config, srpms):
             'No `copr_name` specified in the `main` section of the dgroc '
             'configuration file.')
 
-    if not config.has_option('main', 'copr_url'):
+    if not config.has_option('main', 'copr_url'): 
         warnings.warn(
             'No `copr_url` option set in the `main` section of the dgroc '
             'configuration file, using default: %s' % COPR_URL)
@@ -356,9 +360,8 @@ def copr_build(config, srpms):
 
     username, login, token = _get_copr_auth()
 
-    build_ids = []
     ## Build project/srpm in copr
-    srpms = map(lambda str: config.get('main', 'upload_url') % str.rsplit('/', 1)[1], srpms.values())
+    srpmurl = config.get('main', 'upload_url') % srpmname;
 
     URL = '%s/api/coprs/%s/%s/new_build/' % (
         copr_url,
@@ -366,7 +369,7 @@ def copr_build(config, srpms):
         config.get('main', 'copr_name'))
 
     data = {
-        'pkgs': ' '.join(srpms),
+        'pkgs': srpmurl,
     }
 
     req = requests.post(
@@ -374,7 +377,7 @@ def copr_build(config, srpms):
 
     if '<title>Sign in Coprs</title>' in req.text:
         LOG.info("Invalid API token")
-        return
+        return -1
 
     if req.status_code == 404:
         LOG.info("Project %s/%s not found.", user['username'], project)
@@ -385,16 +388,20 @@ def copr_build(config, srpms):
         LOG.info("Unknown response from server.")
         LOG.debug(req.url)
         LOG.debug(req.text)
-        return
+        return -1
     if req.status_code != 200:
         LOG.info("Something went wrong:\n  %s", output['error'])
-        return
+        return -1
+
     LOG.info(output)
-    build_ids.append(output['id'])
-    return build_ids
+    ids = output['ids'];
+    if len(ids) != 1:
+        return -1
+
+    return output['ids'][0]
 
 
-def check_copr_build(config, build_ids):
+def check_copr_build(config, build_id):
     ''' Check the status of builds running in copr.
     '''
 
@@ -420,50 +427,35 @@ def check_copr_build(config, build_ids):
 
     username, login, token = _get_copr_auth()
 
-    build_ip = []
     ## Build project/srpm in copr
-    successful_builds = []
-    failed_builds = []
-    for build_id in build_ids:
+    URL = '%s/api/coprs/build_status/%s/' % (
+        copr_url,
+        build_id)
 
-        URL = '%s/api/coprs/build_status/%s/' % (
-            copr_url,
-            build_id)
+    req = requests.get(
+        URL, auth=(login, token), verify=not insecure)
 
-        req = requests.get(
-            URL, auth=(login, token), verify=not insecure)
+    if '<title>Sign in Coprs</title>' in req.text:
+        LOG.info("Invalid API token")
+        return 'unknown'
 
-        if '<title>Sign in Coprs</title>' in req.text:
-            LOG.info("Invalid API token")
-            return
+    if req.status_code == 404:
+        LOG.info("Build %s not found.", build_id)
+        return 'unknown'
 
-        if req.status_code == 404:
-            LOG.info("Build %s not found.", build_id)
+    try:
+        output = req.json()
+    except ValueError:
+        LOG.info("Unknown response from server.")
+        LOG.debug(req.url)
+        LOG.debug(req.text)
+        return 'unknown'
+    if req.status_code != 200:
+        LOG.info("Something went wrong:\n  %s", output['error'])
+        return 'unknown'
+    LOG.debug('  Build %s: %s', build_id, output)
 
-        try:
-            output = req.json()
-        except ValueError:
-            LOG.info("Unknown response from server.")
-            LOG.debug(req.url)
-            LOG.debug(req.text)
-            return
-        if req.status_code != 200:
-            LOG.info("Something went wrong:\n  %s", output['error'])
-            return
-        LOG.info('  Build %s: %s', build_id, output)
-
-        if output['status'] in ('pending', 'running'):
-            build_ip.append(build_id)
-        else if output['status'] == 'succeeded'):
-            LOG.info("Build %s succeeded", build_id)
-            successful_builds.append(build_id)
-        else if output['status'] == 'failed'):
-            LOG.info("Build %s failed", build_id)
-            failed_builds.append(build_id)
-
-    return { 'builds' : build_ip,
-             'successful': successful_builds,
-             'failed': failed_builds }
+    return output['status']
 
 
 def main():
@@ -479,6 +471,10 @@ def main():
     else:
         LOG.setLevel(logging.INFO)
 
+    logfile = 'dgroc-' + datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S") + '.log'
+    fh = logging.FileHandler(logfile)
+    LOG.addHandler(fh)
+
     # Read configuration file
     config = ConfigParser.ConfigParser()
     config.read(args.config)
@@ -493,15 +489,20 @@ def main():
             'No `email` specified in the `main` section of the '
             'configuration file.')
 
-    srpms = {}
+    srpms = []
     for project in config.sections():
-        if project == 'main':
+        if project == 'main' or project == 'reporting':
             continue
         LOG.info('Processing project: %s', project)
         try:
-            srpms[project] = generate_new_srpm(config, project, args.force)
+            srpm = generate_new_srpm(config, project, args.force)
+            if not srpm:
+                LOG.info('Skipping project %s', project)
+                continue;
+            srpms.append(srpm)
         except DgrocException, err:
             LOG.info('%s: %s', project, err)
+    #endfor
 
     LOG.info('%s srpms generated', len(srpms))
     if not srpms:
@@ -512,26 +513,64 @@ def main():
 
     if not args.noupload:
         try:
-            upload_srpms(config, srpms.values())
+            upload_srpms(config, srpms)
         except DgrocException, err:
             LOG.info(err)
+    #endif
 
-    try:
-        build_ids = copr_build(config, srpms)
-    except DgrocException, err:
-        LOG.info(err)
 
-    if args.monitoring:
-        LOG.info('Monitoring %s builds...', len(build_ids))
-        successful = []
-        failed = []
-        while build_ids:
-            time.sleep(45)
-            LOG.info(datetime.datetime.now())
-            report = check_copr_build(config, build_ids)
-            build_ids = report['builds']
-            successful += report['successful'])
-            failed += report['failed'])
+    report = ''
+    failed = 0
+    for srpm in srpms:
+        try:
+                srpmname = srpm.rsplit('/', 1)[1]
+                build_id = copr_build(config, srpmname)
+                if build_id == -1:
+                        report += '%s : Failed to start build\n' % srpmname
+                        continue
+
+                msg = '%s: Started build ID %s' % (srpmname, build_id)
+                report += msg + '\n'
+                LOG.info(msg)
+                unknownErrors = 0
+                while True:
+                        time.sleep(60)
+                        status = check_copr_build(config, build_id)
+                        if status == 'running' or status == 'pending':
+                                continue
+                        elif status == 'unknown':
+                                unknownErrors += 1
+                                if unknownErrors < 10:
+                                        LOG.info('Build %s UNKNOWN - failed to update status' % build_id)
+                                        continue
+                        elif status == 'failed':
+                                failed += 1
+                                report += '[FAILED] ' + srpm + '\n'
+                                LOG.info('Build %s FAILED' % build_id)
+                                break
+                        elif status == 'done':
+                                report += '[SUCCESS] ' + srpm + '\n'
+                                LOG.info('Build %s SUCCESSFUL' % build_id)
+                                break
+                        # endif
+                # while True
+        except DgrocException, err:
+                LOG.info(err)
+    #endfor
+
+    if config.has_option('reporting', 'smtp_from') and config.has_option('reporting', 'smtp_to') and config.has_option('reporting', 'smtp_server'):
+        msg = MIMEText(report)
+        if failed > 0:
+                status += '[FAILED] '
+        if successful:
+                status += '[SUCCESS] '
+        msg['Subject'] = status + 'DGROC ' + config.get('main', 'copr_name') + ' nightly build report'
+        msg['From'] = config.get('reporting', 'smtp_from')
+        msg['To'] = config.get('reporting', 'smtp_to')
+        smtp = smtplib.SMTP(config.get('reporting', 'smtp_server'))
+        smtp.sendmail(msg['From'], msg['To'], msg.as_string())
+        smtp.quit()
+    #endif
 
 
 if __name__ == '__main__':
