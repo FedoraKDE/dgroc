@@ -1,13 +1,23 @@
-dgroc
-=====
+dgroc-kf5
+=========
 
-:Author: Pierre-Yves Chibon <pingou@pingoured.fr>
+Fork of dgroc script written by Pierre-Yves Chibon (https://github.com/pypingou/dgroc)
+for automated git rebuilds on Copr.
 
+This fork is specially tailored for automated builds of KDE Frameworks 5 for Fedora
+in Copr (https://github.com/FedoraKDE/fedora-kde-frameworks)
+
+:Author: Daniel Vrátil <dvratil@redhat.com>
+:Original Author: Pierre-Yves Chibon <pingou@pingoured.fr>
 
 dgroc: Daily Git Rebuild On Copr
 
 This project aims at easily provide daily build of a project tracked via
 git and made available via `copr <http://copr.fedoraproject.org>`_.
+
+
+
+This is 
 
 
 Get it running
