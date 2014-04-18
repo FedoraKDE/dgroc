@@ -138,13 +138,26 @@ def git_clone_update(git_url, git_branch, git_folder):
 def git_push_changes(git_url, git_branch, git_folder, keypair):
     repo = pygit2.Repository(git_folder)
     repo.index.read()
-    for entry in repo.index:
-        repo.index.add(entry.path)
+    for filepath in repo.status():
+        repo.index.add(filepath)
     repo.index.write()
 
-    author = pygit2.Signature('Dgroc KF5 Script', 'dgroc-kf5@kde.fedoraproject.org')
+    cwd = os.getcwd()
+    os.chdir(git_folder)
     msg = 'Nightly rebuild of KF5 on ' + datetime.datetime.now().strftime("%Y-%m-%d");
-    repo.create_commit(repo.head.name, author, author, msg, repo.TreeBuilder().write(), [repo.head.target])
+    commit = subprocess.Popen(
+        ['git', 'commit', '-m ' +msg , '--author="Dgroc KF5 Script <dgroc-kf5@kde.fedoraproject.org>"' ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE)
+    out = commit.communicate()
+    os.chdir(cwd)
+    if commit.returncode:
+        raise DgrocException('Strange result of git commit:\n%s' % out[1] if not out[0] else out[0])
+
+    # FIXME: This creates a commit that deletes all files. I have no idea why.
+    #author = pygit2.Signature('Dgroc KF5 Script', 'dgroc-kf5@kde.fedoraproject.org')
+    #tree = repo.TreeBuilder().write()
+    #repo.create_commit(repo.head.name, author, author, msg, tree, [repo.head.target])
 
     remote = {}
     for r in repo.remotes:
@@ -176,7 +189,8 @@ def update_spec(spec_file, commit_hash, archive_name, packager, email):
                 version = row.split('Version:')[1].strip()
             if row.startswith('Release:'):
                 if commit_hash in row:
-                    raise DgrocException('Spec already up to date')
+                    LOG.info('Spec already up to date')
+                    return version;
                 LOG.debug('Release line before: %s', row)
                 rel_num = row.split('ase:')[1].strip().split('%{?dist')[0]
                 rel_num = rel_num.split('.')[0]
@@ -201,7 +215,7 @@ def update_spec(spec_file, commit_hash, archive_name, packager, email):
             stream.write(row + '\n')
 
     LOG.info('Spec file updated: %s', spec_file)
-
+    return version
 
 def get_rpm_sourcedir():
     ''' Retrieve the _sourcedir for rpm
@@ -261,11 +275,29 @@ def generate_new_srpm(config, project, force):
     if not changed and not force:
         return
 
+    archive_name = "%s-%s.tar" % (project, commit_hash)
+
+    # Update spec file
+    spec_file = config.get(project, 'spec_file')
+    if '~' in spec_file:
+        spec_file = os.path.expanduser(spec_file)
+
+    version = None
+    try:
+        version = update_spec(spec_file,
+                              commit_hash,
+                              archive_name,
+                              config.get('main', 'realname') if config.has_option('main', 'realname') else config.get('main', 'username'),
+                              config.get('main', 'email'))
+    except DgrocException, err:
+        if not force:
+            # FIXME: Return valid path to SRPM
+            return
+
     # Build sources
     cwd = os.getcwd()
     os.chdir(config.get(project, 'git_folder'))
-    archive_name = "%s-%s.tar" % (project, commit_hash)
-    cmd = ["git", "archive", "--format=tar", "--prefix=%s/" % project,
+    cmd = ["git", "archive", "--format=tar", "--prefix=%s-%s/" % (project, version),
            "-o%s/%s" % (get_rpm_sourcedir(), archive_name), "HEAD"]
     LOG.debug('Command to generate archive: %s', ' '.join(cmd))
     pull = subprocess.Popen(
@@ -275,22 +307,6 @@ def generate_new_srpm(config, project, force):
     out = pull.communicate()
     os.chdir(cwd)
 
-    # Update spec file
-    spec_file = config.get(project, 'spec_file')
-    if '~' in spec_file:
-        spec_file = os.path.expanduser(spec_file)
-
-    try:
-        update_spec(
-            spec_file,
-            commit_hash,
-            archive_name,
-            config.get('main', 'realname') if config.has_option('main', 'realname') else config.get('main', 'username'),
-            config.get('main', 'email'))
-    except DgrocException, err:
-        if not force:
-            # FIXME: Return valid path to SRPM
-            return
 
     # Copy patches
     if config.has_option(project, 'patch_files'):
@@ -540,7 +556,6 @@ def main():
             srpms.append(srpm)
         except DgrocException, err:
             LOG.info('%s: %s', project, err)
-    #endfor
 
     git_push_changes(config.get('main', 'spec_git_push'),
                      config.get('main', 'spec_branch'),
