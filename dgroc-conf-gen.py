@@ -49,8 +49,8 @@ config = { 'username': 'dvratil',
          }
 
 #               git repository          package name            branch          [patch1, patch2, ...]
-base       = [('libmm-qt',              'libmm-qt5'),
-              ('libnm-qt',              'libnm-qt5'),
+base       = [#('libmm-qt',              'libmm-qt5'),
+              #('libnm-qt',              'libnm-qt5'),
               ('polkit-qt-1',           'polkit-qt5',           'qt5',          ['polkit-qt5-qt4-coinstallability.patch','Doxyfile'])
              ]
 
@@ -74,7 +74,8 @@ tier1      = [('attica',                'kf5-attica'),
               ('solid',                 'kf5-solid'),
               ('sonnet',                'kf5-sonnet'),
               ('threadweaver',          'kf5-threadweaver'),
-              ('kf5umbrella',           'kf5-umbrella')
+              ('kf5umbrella',           'kf5-umbrella'),
+              ('libmm-qt',              'kf5-modemmanagerqt')
         ]
 
 # Tier 2 Frameworks
@@ -84,7 +85,8 @@ tier2      = [('kauth',                 'kf5-kauth'),
               ('kdnssd',                'kf5-kdnssd'),
               ('kdoctools',             'kf5-kdoctools',        'master',       ['kdoctools-update.patch']),
               ('ki18n',                 'kf5-ki18n'),
-              ('kjobwidgets',           'kf5-kjobwidgets')
+              ('kjobwidgets',           'kf5-kjobwidgets'),
+              ('libnm-qt',              'kf5-networkmanagerqt')
         ]
 
 # Tier 3 Frameworks (order matters!)
