@@ -138,6 +138,10 @@ def git_clone_update(git_url, git_branch, git_folder):
 def git_push_changes(git_url, git_branch, git_folder, keypair):
     repo = pygit2.Repository(git_folder)
     repo.index.read()
+    # Nothing to commit?
+    if not repo.status():
+        return
+
     for filepath in repo.status():
         repo.index.add(filepath)
     repo.index.write()
@@ -159,19 +163,29 @@ def git_push_changes(git_url, git_branch, git_folder, keypair):
     #tree = repo.TreeBuilder().write()
     #repo.create_commit(repo.head.name, author, author, msg, tree, [repo.head.target])
 
-    remote = {}
-    for r in repo.remotes:
-            if r.url == git_url:
-                remote = r;
-                break;
+    #remote = {}
+    #for r in repo.remotes:
+    #        if r.url == git_url:
+    #            remote = r;
+    #            break;#
 
-    if not remote:
-        remote = repo.create_remote('origin_push', git_url)
+    #if not remote:
+    #    remote = repo.create_remote('origin_push', git_url)
 
-    remote.credentials = keypair
-    remote.add_push('refs/heads/' + git_branch +':refs/heads/' + git_branch)
-    remote.push(remote.push_refspecs[0])
+    #remote.credentials = keypair
+    #remote.add_push('refs/heads/' + git_branch +':refs/heads/' + git_branch)
+    #remote.push(remote.push_refspecs[0])
 
+    cwd = os.getcwd()
+    os.chdir(git_folder)
+    push = subprocess.Popen(
+        ['git', 'push', 'origin_push', git_branch ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE)
+    out = push.communicate()
+    os.chdir(cwd)
+    if push.returncode:
+        raise DgrocException('Strange result of git push:\n%s' % out[1] if not out[0] else out[0])
 
 
 def update_spec(spec_file, commit_hash, archive_name, packager, email):
@@ -182,15 +196,21 @@ def update_spec(spec_file, commit_hash, archive_name, packager, email):
     release = '%sgit%s' % (date.today().strftime('%Y%m%d'), commit_hash)
     output = []
     version = None
+    framework = None
     with open(spec_file) as stream:
         for row in stream:
             row = row.rstrip()
+            if row.startswith('%define'):
+                val = row.split(' ');
+                if val[1].strip() == 'framework':
+                        framework = val[2].strip()
             if row.startswith('Version:'):
                 version = row.split('Version:')[1].strip()
             if row.startswith('Release:'):
                 if commit_hash in row:
                     LOG.info('Spec already up to date')
-                    return version;
+                    return { 'version': version,
+                             'framework': framework }
                 LOG.debug('Release line before: %s', row)
                 rel_num = row.split('ase:')[1].strip().split('%{?dist')[0]
                 rel_num = rel_num.split('.')[0]
@@ -215,7 +235,8 @@ def update_spec(spec_file, commit_hash, archive_name, packager, email):
             stream.write(row + '\n')
 
     LOG.info('Spec file updated: %s', spec_file)
-    return version
+    return { 'version': version,
+             'framework': framework }
 
 def get_rpm_sourcedir():
     ''' Retrieve the _sourcedir for rpm
@@ -282,13 +303,13 @@ def generate_new_srpm(config, project, force):
     if '~' in spec_file:
         spec_file = os.path.expanduser(spec_file)
 
-    version = None
+    specdata = {}
     try:
-        version = update_spec(spec_file,
-                              commit_hash,
-                              archive_name,
-                              config.get('main', 'realname') if config.has_option('main', 'realname') else config.get('main', 'username'),
-                              config.get('main', 'email'))
+        specdata = update_spec(spec_file,
+                               commit_hash,
+                               archive_name,
+                               config.get('main', 'realname') if config.has_option('main', 'realname') else config.get('main', 'username'),
+                               config.get('main', 'email'))
     except DgrocException, err:
         if not force:
             # FIXME: Return valid path to SRPM
@@ -297,7 +318,7 @@ def generate_new_srpm(config, project, force):
     # Build sources
     cwd = os.getcwd()
     os.chdir(config.get(project, 'git_folder'))
-    cmd = ["git", "archive", "--format=tar", "--prefix=%s-%s/" % (project, version),
+    cmd = ["git", "archive", "--format=tar", "--prefix=%s-%s/" % (project if not specdata['framework'] else specdata['framework'], specdata['version']),
            "-o%s/%s" % (get_rpm_sourcedir(), archive_name), "HEAD"]
     LOG.debug('Command to generate archive: %s', ' '.join(cmd))
     pull = subprocess.Popen(
