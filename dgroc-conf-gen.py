@@ -33,6 +33,7 @@ config = { 'username': 'dvratil',
 
            'sourceDir': '/home/progdan/kf5/src',
            'specDir': '/home/progdan/kf5/spec',
+           'logDir':  '/home/progdan/kf5/logs',
 
            'git_repo': 'git://anongit.kde.org',
 

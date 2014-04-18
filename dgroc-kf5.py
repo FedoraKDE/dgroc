@@ -471,7 +471,7 @@ def main():
     else:
         LOG.setLevel(logging.INFO)
 
-    logfile = 'dgroc-' + datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S") + '.log'
+    logfile = config.option('main', 'logDir') + '/' + 'dgroc-' + datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S") + '.log'
     fh = logging.FileHandler(logfile)
     LOG.addHandler(fh)
 
