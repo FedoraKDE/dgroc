@@ -23,6 +23,7 @@ from datetime import date
 import time
 
 import pygit2
+
 import requests
 
 import smtplib
@@ -108,6 +109,57 @@ def get_arguments():
 
     return parser.parse_args()
 
+def git_clone_update(git_url, git_branch, git_folder):
+    # git clone if needed
+    if '~' in git_folder:
+        git_folder = os.path.expanduser(git_folder)
+
+    if not os.path.exists(git_folder):
+        LOG.info('Cloning %s', git_url)
+        repo = pygit2.clone_repository(git_url, git_folder, False, False, 'origin', git_branch)
+    else:
+        repo = pygit2.Repository(git_folder)
+
+    # git pull remote branch
+    cwd = os.getcwd()
+    os.chdir(git_folder)
+    pull = subprocess.Popen(
+        ["git", "pull", git_url, git_branch],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE)
+    out = pull.communicate()
+    os.chdir(cwd)
+    if pull.returncode:
+        raise DgrocException('Strange result of the git pull from \'%s\':\n%s' % (git_url, out[1] if not out[0] else out[0]))
+        return
+
+    return repo;
+
+def git_push_changes(git_url, git_branch, git_folder, keypair):
+    repo = pygit2.Repository(git_folder)
+    repo.index.read()
+    for entry in repo.index:
+        repo.index.add(entry.path)
+    repo.index.write()
+
+    author = pygit2.Signature('Dgroc KF5 Script', 'dgroc-kf5@kde.fedoraproject.org')
+    msg = 'Nightly rebuild of KF5 on ' + datetime.datetime.now().strftime("%Y-%m-%d");
+    repo.create_commit(repo.head.name, author, author, msg, repo.TreeBuilder().write(), [repo.head.target])
+
+    remote = {}
+    for r in repo.remotes:
+            if r.url == git_url:
+                remote = r;
+                break;
+
+    if not remote:
+        remote = repo.create_remote('origin_push', git_url)
+
+    remote.credentials = keypair
+    remote.add_push('refs/heads/' + git_branch +':refs/heads/' + git_branch)
+    remote.push(remote.push_refspecs[0])
+
+
 
 def update_spec(spec_file, commit_hash, archive_name, packager, email):
     ''' Update the release tag and changelog of the specified spec file
@@ -182,39 +234,14 @@ def generate_new_srpm(config, project, force):
             'Project "%s" does not specify a "spec_file" option'
             % project)
 
-    # git clone if needed
-    git_folder = config.get(project, 'git_folder')
-    if '~' in git_folder:
-        git_folder = os.path.expanduser(git_folder)
-
-    if not os.path.exists(git_folder):
-        git_url = config.get(project, 'git_url')
-        LOG.info('Cloning %s', git_url)
-        pygit2.clone_repository(git_url, git_folder)
-
-
     if config.has_option(project, 'git_branch'):
         branch = config.get(project, 'git_branch')
     else:
         branch = 'master'
 
-    # git checkout origin/branch
-    repo = pygit2.Repository(git_folder)
-    ref = repo.lookup_branch('origin/' + branch, pygit2.GIT_BRANCH_REMOTE)
-    repo.checkout(ref.name)
-
-    # git pull remote branch
-    cwd = os.getcwd()
-    os.chdir(git_folder)
-    pull = subprocess.Popen(
-        ["git", "pull", config.get(project, 'git_url'), branch],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE)
-    out = pull.communicate()
-    os.chdir(cwd)
-    if pull.returncode:
-        LOG.info('Strange result of the git pull:\n%s', out[0])
-        return
+    repo = git_clone_update(config.get(project, 'git_url'),
+                            branch,
+                            config.get(project, 'git_folder'))
 
     # Retrieve last commit
     commit = repo[repo.head.target]
@@ -236,7 +263,7 @@ def generate_new_srpm(config, project, force):
 
     # Build sources
     cwd = os.getcwd()
-    os.chdir(git_folder)
+    os.chdir(config.get(project, 'git_folder'))
     archive_name = "%s-%s.tar" % (project, commit_hash)
     cmd = ["git", "archive", "--format=tar", "--prefix=%s/" % project,
            "-o%s/%s" % (get_rpm_sourcedir(), archive_name), "HEAD"]
@@ -471,13 +498,16 @@ def main():
     else:
         LOG.setLevel(logging.INFO)
 
-    logfile = config.option('main', 'logDir') + '/' + 'dgroc-' + datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S") + '.log'
-    fh = logging.FileHandler(logfile)
-    LOG.addHandler(fh)
-
     # Read configuration file
     config = ConfigParser.ConfigParser()
     config.read(args.config)
+
+    if not os.path.exists(config.get('main', 'log_dir')):
+            os.makedirs(config.get('main', 'log_dir'))
+
+    logfile = config.get('main', 'log_dir') + '/' + 'dgroc-' + datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S") + '.log'
+    fh = logging.FileHandler(logfile)
+    LOG.addHandler(fh)
 
     if not config.has_option('main', 'username'):
         raise DgrocException(
@@ -488,6 +518,14 @@ def main():
         raise DgrocException(
             'No `email` specified in the `main` section of the '
             'configuration file.')
+
+    try:
+        git_clone_update(config.get('main', 'spec_git_clone'),
+                         config.get('main', 'spec_branch'),
+                         config.get('main', 'spec_dir'))
+    except DgrocException, err:
+            LOG.info(err)
+            return
 
     srpms = []
     for project in config.sections():
@@ -503,6 +541,14 @@ def main():
         except DgrocException, err:
             LOG.info('%s: %s', project, err)
     #endfor
+
+    git_push_changes(config.get('main', 'spec_git_push'),
+                     config.get('main', 'spec_branch'),
+                     config.get('main', 'spec_dir'),
+                     pygit2.Keypair('git',
+                                    config.get('main', 'spec_git_pub_key'),
+                                    config.get('main', 'spec_git_priv_key'),
+                                    ''))
 
     LOG.info('%s srpms generated', len(srpms))
     if not srpms:

@@ -31,8 +31,13 @@ config = { 'username': 'dvratil',
            'upload_url': 'http://pub.progdan.cz/kf5/srpm/nightly/%s',
            'no_ssl_check': 'False',
 
+           'spec_git_clone':   'https://github.com/FedoraKDE/fedora-kde-frameworks.git',
+           'spec_git_push':    'git@github.com:FedoraKDE/fedora-kde-frameworks.git',
+           'specBranch':       'nightly',
+           'specPrivKey': '/home/progdan/.ssh/id_rsa.dgroc',
+           'specPubKey': '/home/progdan/.ssh/id_rsa.dgroc.pub',
+           'specDir':   '/home/progdan/kf5/fedora-kde-frameworks',
            'sourceDir': '/home/progdan/kf5/src',
-           'specDir': '/home/progdan/kf5/spec',
            'logDir':  '/home/progdan/kf5/logs',
 
            'git_repo': 'git://anongit.kde.org',
@@ -46,7 +51,7 @@ config = { 'username': 'dvratil',
 #               git repository          package name            branch          [patch1, patch2, ...]
 base       = [('libmm-qt',              'libmm-qt5'),
               ('libnm-qt',              'libnm-qt5'),
-              ('polkit-qt-1',           'polkit-qt5',           'qt5'           ['polkit-qt5-qt4-coinstallability.patch'])
+              ('polkit-qt-1',           'polkit-qt5',           'qt5',          ['polkit-qt5-qt4-coinstallability.patch','Doxyfile'])
              ]
 
 # Tier 1 Frameworks
@@ -116,7 +121,7 @@ tier3      = [('kconfigwidgets',        'kf5-kconfigwidgets'),
 # Tier 4 Frameworks
 tier4      = [('frameworkintegration',  'kf5-frameworkintegration'),
               ('kapidox',               'kf5-kapidox'),
-              ('kde4support',           'kf5-kde4support'),
+              ('kdelibs4support',       'kf5-kde4support'),
               ('kfileaudiopreview',     'kf5-kfileaudiopreview'),
               ('khtml',                 'kf5-khtml')
         ]
@@ -147,6 +152,13 @@ f.write('copr_name = ' + config['copr_name'] + '\n')
 f.write('upload_command = ' + config['upload_command'] + '\n')
 f.write('upload_url = ' + config['upload_url'] + '\n')
 f.write('no_ssl_check = ' + config['no_ssl_check'] + '\n')
+f.write('spec_git_clone = ' + config['spec_git_clone'] + '\n')
+f.write('spec_git_push = ' + config['spec_git_push'] + '\n')
+f.write('spec_git_pub_key = ' + config['specPubKey'] + '\n')
+f.write('spec_git_priv_key = ' + config['specPrivKey'] + '\n')
+f.write('spec_branch = ' + config['specBranch'] + '\n')
+f.write('spec_dir = ' + config['specDir'] + '\n')
+f.write('log_dir = ' + config['logDir'] + '\n')
 f.write('\n')
 f.write('[reporting]\n')
 f.write('smtp_from = ' + config['smtp_from'] + '\n')
@@ -157,8 +169,9 @@ f.write('\n')
 
 for module in modules:
         for framework in module[1]:
+                specdir = config['specDir'] + '/spec/' + module[0] + '/' + framework[1] + '/';
                 f.write('[' + framework[1] + ']\n')
-                f.write('spec_file = ' + config['specDir'] + '/' + module[0] + '/' + framework[1] + '/' + framework[1] + '.spec\n')
+                f.write('spec_file = ' + specdir + framework[1] + '.spec\n')
                 f.write('git_url = ' + config['git_repo'] + '/' + framework[0] + '.git\n')
                 f.write('git_folder = ' + config['sourceDir'] +'/' + framework[1] + '\n')
                 if len(framework) == 3:
@@ -166,8 +179,9 @@ for module in modules:
                 if len(framework) == 4:
                         patches = []
                         for patch in framework[3]:
-                                patches.append(config['sourceDir'] + '/' + patch)
+                                patches.append(specdir + patch)
                         f.write('patch_files = ' + (",".join(patches)) + '\n')
                 f.write('\n')
 
 f.close()
+
