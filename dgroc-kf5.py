@@ -631,7 +631,7 @@ def main():
                                 report += '[FAILED] ' + srpm + '\n'
                                 LOG.info('Build %s FAILED' % build_id)
                                 break
-                        elif status == 'done':
+                        elif status == 'succeeded':
                                 report += '[SUCCESS] ' + srpm + '\n'
                                 LOG.info('Build %s SUCCESSFUL' % build_id)
                                 break
