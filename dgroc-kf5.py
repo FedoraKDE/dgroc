@@ -180,7 +180,7 @@ def git_push_changes(git_url, git_branch, git_folder, keypair):
     cwd = os.getcwd()
     os.chdir(git_folder)
     push = subprocess.Popen(
-        ['git', 'push', 'origin_push', git_branch ],
+        ['git', 'push', git_url, git_branch ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE)
     out = push.communicate()
