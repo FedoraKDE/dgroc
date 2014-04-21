@@ -351,7 +351,7 @@ def generate_new_srpm(config, project, force):
 
     # Generate SRPM
     build = subprocess.Popen(
-        ["rpmbuild", "-bs", spec_file],
+        ["rpmbuild", "-bs", "--define=dist .fc20", spec_file],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE)
     out = build.communicate()
