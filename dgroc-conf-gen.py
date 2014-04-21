@@ -51,7 +51,7 @@ config = { 'username': 'dvratil',
 #               git repository          package name            branch          [patch1, patch2, ...]
 base       = [#('libmm-qt',              'libmm-qt5'),
               #('libnm-qt',              'libnm-qt5'),
-              ('polkit-qt-1',           'polkit-qt5',           'qt5',          ['polkit-qt5-qt4-coinstallability.patch','Doxyfile'])
+              ('polkit-qt-1',           'polkit-qt5',           'qt5',          ['Doxyfile'])
              ]
 
 # Tier 1 Frameworks
