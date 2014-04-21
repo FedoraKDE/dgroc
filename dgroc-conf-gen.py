@@ -123,7 +123,7 @@ tier3      = [('kconfigwidgets',        'kf5-kconfigwidgets'),
 # Tier 4 Frameworks
 tier4      = [('frameworkintegration',  'kf5-frameworkintegration'),
               ('kapidox',               'kf5-kapidox'),
-              ('kdelibs4support',       'kf5-kde4support'),
+              ('kdelibs4support',       'kf5-kdelibs4support'),
               ('kfileaudiopreview',     'kf5-kfileaudiopreview'),
               ('khtml',                 'kf5-khtml')
         ]
