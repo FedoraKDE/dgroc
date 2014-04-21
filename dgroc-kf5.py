@@ -12,6 +12,7 @@ License: GPLv3 or any later version.
 
 import argparse
 import ConfigParser
+from collections import OrderedDict
 import datetime
 import logging
 import os
@@ -536,7 +537,7 @@ def main():
         LOG.setLevel(logging.INFO)
 
     # Read configuration file
-    config = ConfigParser.ConfigParser()
+    config = ConfigParser.ConfigParser(dict_type=OrderedDict)
     config.read(args.config)
 
     if not os.path.exists(config.get('main', 'log_dir')):
