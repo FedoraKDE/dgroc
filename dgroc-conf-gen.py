@@ -51,6 +51,7 @@ config = { 'username': 'dvratil',
 #               git repository          package name            branch          [patch1, patch2, ...]
 base       = [#('libmm-qt',              'libmm-qt5'),
               #('libnm-qt',              'libnm-qt5'),
+              ('extra-cmake-modules',	'extra-cmake-modules'),
               ('polkit-qt-1',           'polkit-qt5',           'qt5',          ['Doxyfile'])
              ]
 
