@@ -107,6 +107,9 @@ def get_arguments():
         '--no-upload', dest='noupload', action='store_true',
         default=False,
         help='Skip uploading SRPMs.')
+    parser.add_argument(
+        '--resume-from', dest='resumeFrom', default=None,
+        help='Resume build from specified package.')
 
     return parser.parse_args()
 
@@ -566,9 +569,15 @@ def main():
             return
 
     srpms = []
+    resumeFrom = args.resumeFrom
     for project in config.sections():
         if project == 'main' or project == 'reporting':
             continue
+        if resumeFrom and resumeFrom <> project:
+            continue;
+
+        resumeFrom = None
+
         LOG.info('Processing project: %s', project)
         try:
             srpm = generate_new_srpm(config, project, args.force)
