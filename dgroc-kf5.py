@@ -212,9 +212,8 @@ def update_spec(spec_file, commit_hash, archive_name, packager, email):
                 version = row.split('Version:')[1].strip()
             if row.startswith('Release:'):
                 if commit_hash in row:
-                    LOG.info('Spec already up to date')
-                    return { 'version': version,
-                             'framework': framework }
+                    LOG.info('Spec already up to date, skipping')
+                    return None
                 LOG.debug('Release line before: %s', row)
                 rel_num = row.split('ase:')[1].strip().split('%{?dist')[0]
                 rel_num = rel_num.split('.')[0]
@@ -314,6 +313,10 @@ def generate_new_srpm(config, project, force):
                                archive_name,
                                config.get('main', 'realname') if config.has_option('main', 'realname') else config.get('main', 'username'),
                                config.get('main', 'email'))
+        # Skip packages that are up to date, build only those that need it
+        if specdata == None:
+            return;
+
     except DgrocException, err:
         if not force:
             # FIXME: Return valid path to SRPM
