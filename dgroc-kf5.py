@@ -110,6 +110,10 @@ def get_arguments():
     parser.add_argument(
         '--resume-from', dest='resumeFrom', default=None,
         help='Resume build from specified package.')
+    parser.add_argument(
+        '--build-only', dest='buildOnly', action='store_true',
+        default=False,
+        help='Only submit packages for build')
 
     return parser.parse_args()
 
@@ -250,6 +254,46 @@ def get_rpm_sourcedir():
     ).stdout.read()[:-1]
     return dirname
 
+def get_rpm_srcrpmdir():
+    dirname = subprocess.Popen(
+        ['rpm', '-E', '%_srcrpmdir'],
+        stdout=subprocess.PIPE
+    ).stdout.read()[:-1]
+    return dirname
+
+def find_srpm(config, project):
+    spec_file = config.get(project, 'spec_file')
+    if '~' in spec_file:
+        spec_file = os.path.expanduser(spec_file)
+    specdata = {}
+
+    name = None;
+    version = None;
+    release = None;
+    framework = None;
+    git_commit = None;
+    with open(spec_file) as stream:
+        for row in stream:
+            row = row.rstrip()
+            if row.startswith('%define'):
+                val = row.split(' ');
+                if val[1].strip() == 'framework':
+                        framework = val[2].strip()
+                if val[1].strip() == 'git_commit':
+                        git_commit = val[2].strip();
+            if row.startswith('Name:'):
+                name = row.split('Name:')[1].strip();
+            if row.startswith('Version:'):
+                version = row.split('Version:')[1].strip()
+            if row.startswith('Release:'):
+                release = row.split('Release:')[1].strip().split('%{?dist')[0]
+
+    if '%{framework}' in name and framework:
+        name = name.replace('%{framework}', framework)
+    if '%{git_commit}' in release and git_commit:
+        release = release.replace('%{git_commit}', git_commit)
+
+    return "%s/%s-%s-%s.fc20.src.rpm" % (get_rpm_srcrpmdir(), name, version, release)
 
 def generate_new_srpm(config, project, force):
     ''' For a given project in the configuration file generate a new srpm
@@ -573,6 +617,7 @@ def main():
 
     srpms = []
     resumeFrom = args.resumeFrom
+    buildOnly = args.buildOnly
     for project in config.sections():
         if project == 'main' or project == 'reporting':
             continue
@@ -583,7 +628,10 @@ def main():
 
         LOG.info('Processing project: %s', project)
         try:
-            srpm = generate_new_srpm(config, project, args.force)
+            if buildOnly:
+                srpm = find_srpm(config, project)
+            else:
+                srpm = generate_new_srpm(config, project, args.force)
             if not srpm:
                 LOG.info('Skipping project %s', project)
                 continue;
@@ -591,22 +639,23 @@ def main():
         except DgrocException, err:
             LOG.info('%s: %s', project, err)
 
-    git_push_changes(config.get('main', 'spec_git_push'),
-                     config.get('main', 'spec_branch'),
-                     config.get('main', 'spec_dir'),
-                     pygit2.Keypair('git',
+    if not args.buildOnly:
+        git_push_changes(config.get('main', 'spec_git_push'),
+                         config.get('main', 'spec_branch'),
+                         config.get('main', 'spec_dir'),
+                         pygit2.Keypair('git',
                                     config.get('main', 'spec_git_pub_key'),
                                     config.get('main', 'spec_git_priv_key'),
                                     ''))
 
-    LOG.info('%s srpms generated', len(srpms))
+    LOG.info('%s srpms', len(srpms))
     if not srpms:
         return
 
     if args.srpmonly:
         return
 
-    if not args.noupload:
+    if not args.noupload and not args.buildOnly:
         try:
             upload_srpms(config, srpms)
         except DgrocException, err:
