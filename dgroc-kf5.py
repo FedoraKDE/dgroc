@@ -280,7 +280,7 @@ def find_srpm(config, project):
     with open(spec_file) as stream:
         for row in stream:
             row = row.rstrip()
-            if row.startswith('%define'):
+            if row.startswith('%define') or row.startswith('%global'):
                 val = row.split(' ');
                 if val[1].strip() == 'framework':
                         framework = val[2].strip()
