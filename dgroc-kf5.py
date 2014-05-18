@@ -277,15 +277,18 @@ def find_srpm(config, project):
     release = None;
     framework = None;
     git_commit = None;
+    basename = None;
     with open(spec_file) as stream:
         for row in stream:
             row = row.rstrip()
             if row.startswith('%define') or row.startswith('%global'):
-                val = row.split(' ');
+                val = row.split();
                 if val[1].strip() == 'framework':
                         framework = val[2].strip()
                 if val[1].strip() == 'git_commit':
                         git_commit = val[2].strip();
+                if val[1].strip() == 'base_name':
+                        basename = val[2].strip();
             if row.startswith('Name:'):
                 name = row.split('Name:')[1].strip();
             if row.startswith('Version:'):
@@ -295,6 +298,8 @@ def find_srpm(config, project):
 
     if '%{framework}' in name and framework:
         name = name.replace('%{framework}', framework)
+    if '%{base_name}' in name and basename:
+        name = name.replace('%{base_name}', basename)
     if '%{git_commit}' in release and git_commit:
         release = release.replace('%{git_commit}', git_commit)
 
