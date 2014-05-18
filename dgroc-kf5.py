@@ -641,6 +641,7 @@ def main():
         try:
             if buildOnly:
                 srpm = find_srpm(config, project)
+                LOG.info('Found SRPM %s', srpm)
             else:
                 srpm = generate_new_srpm(config, project, args.force, args.forceRebuild)
             if not srpm:
