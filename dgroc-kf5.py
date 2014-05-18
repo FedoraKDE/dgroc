@@ -114,6 +114,9 @@ def get_arguments():
         '--build-only', dest='buildOnly', action='store_true',
         default=False,
         help='Only submit packages for build')
+    parser.add_argument(
+        '--force-rebuild', dest='forceRebuild', action='store_true', default=False,
+        help='Bumps release for all packages to force rebuild.')
 
     return parser.parse_args()
 
@@ -196,7 +199,7 @@ def git_push_changes(git_url, git_branch, git_folder, keypair):
         raise DgrocException('Strange result of git push:\n%s' % out[1] if not out[0] else out[0])
 
 
-def update_spec(spec_file, commit_hash, archive_name, packager, email):
+def update_spec(spec_file, commit_hash, archive_name, packager, email, forceRebuild):
     ''' Update the release tag and changelog of the specified spec file
     to work with the specified git commit_hash.
     '''
@@ -215,12 +218,14 @@ def update_spec(spec_file, commit_hash, archive_name, packager, email):
             if row.startswith('Version:'):
                 version = row.split('Version:')[1].strip()
             if row.startswith('Release:'):
-                if commit_hash in row:
+                if commit_hash in row and not forceRebuild:
                     LOG.info('Spec already up to date, skipping')
                     return None
                 LOG.debug('Release line before: %s', row)
                 rel_num = row.split('ase:')[1].strip().split('%{?dist')[0]
                 rel_num = rel_num.split('.')[0]
+                if forceRebuild:
+                        rel_num = int(rel_num) + 1
                 LOG.debug('Release number: %s', rel_num)
                 row = 'Release:        %s.%s%%{?dist}' % (rel_num, release)
                 LOG.debug('Release line after: %s', row)
@@ -295,7 +300,7 @@ def find_srpm(config, project):
 
     return "%s/%s-%s-%s.fc20.src.rpm" % (get_rpm_srcrpmdir(), name, version, release)
 
-def generate_new_srpm(config, project, force):
+def generate_new_srpm(config, project, force, forceRebuild):
     ''' For a given project in the configuration file generate a new srpm
     if it is possible.
     '''
@@ -356,7 +361,8 @@ def generate_new_srpm(config, project, force):
                                commit_hash,
                                archive_name,
                                config.get('main', 'realname') if config.has_option('main', 'realname') else config.get('main', 'username'),
-                               config.get('main', 'email'))
+                               config.get('main', 'email'),
+                               forceRebuild)
         # Skip packages that are up to date, build only those that need it
         if specdata == None:
             return;
@@ -631,7 +637,7 @@ def main():
             if buildOnly:
                 srpm = find_srpm(config, project)
             else:
-                srpm = generate_new_srpm(config, project, args.force)
+                srpm = generate_new_srpm(config, project, args.force, args.forceRebuild)
             if not srpm:
                 LOG.info('Skipping project %s', project)
                 continue;
@@ -706,7 +712,7 @@ def main():
         msg = MIMEText(report)
         if failed > 0:
                 status += '[FAILED] '
-        if successful:
+        else:
                 status += '[SUCCESS] '
         msg['Subject'] = status + 'DGROC ' + config.get('main', 'copr_name') + ' nightly build report'
         msg['From'] = config.get('reporting', 'smtp_from')
